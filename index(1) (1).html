@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dedeman Menü</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f7f4ef;
+      color: #25211d;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+    .hero {
+      background: #22201d;
+      color: #fff;
+      padding: 34px 20px 28px;
+      text-align: center;
+    }
+    .hero .brand {
+      font-size: 13px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      opacity: .75;
+      margin-bottom: 8px;
+    }
+    .hero h1 {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: 36px;
+      font-weight: 500;
+    }
+    .hero p {
+      margin: 10px 0 0;
+      opacity: .75;
+      font-size: 14px;
+    }
+    .container {
+      width: min(720px, 100%);
+      margin: auto;
+      padding: 18px 16px 40px;
+    }
+    .status {
+      text-align: center;
+      font-size: 13px;
+      color: #777;
+      padding: 12px;
+    }
+    .category {
+      margin-top: 18px;
+    }
+    .category-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 24px 0 10px;
+      color: #6f4e37;
+    }
+    .category-title::before,
+    .category-title::after {
+      content: "";
+      height: 1px;
+      background: #d8cec2;
+      flex: 1;
+    }
+    .category-title h2 {
+      margin: 0;
+      font-family: Georgia, serif;
+      font-size: 23px;
+      font-weight: 500;
+    }
+    .item {
+      background: #fff;
+      border-radius: 12px;
+      padding: 15px 16px;
+      margin: 9px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.045);
+    }
+    .item-name {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .item-price {
+      white-space: nowrap;
+      font-size: 16px;
+      font-weight: 700;
+      color: #6f4e37;
+    }
+    .error {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px;
+      color: #a33;
+      text-align: center;
+      margin-top: 20px;
+    }
+    footer {
+      text-align: center;
+      color: #888;
+      font-size: 12px;
+      padding: 18px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="brand">Dedeman</div>
+    <h1>Menü</h1>
+    <p>Lezzetli seçimlerimizi keşfedin</p>
+  </header>
+
+  <main class="container">
+    <div id="status" class="status">Menü yükleniyor...</div>
+    <div id="menu"></div>
+    <div id="error" class="error" hidden></div>
+    <footer>Afiyet olsun ♥</footer>
+  </main>
+
+<script>
+  /*
+    SUPABASE BİLGİLERİ
+    Aşağıdaki iki alanı kendi Supabase projenizden doldurun.
+
+    URL:
+      https://PROJE_ID.supabase.co
+
+    KEY:
+      Supabase > Ayarlar > API Anahtarları > Yayınlanabilir anahtar
+  */
+
+  const SUPABASE_URL = "https://jfxbceupikqxgdsucodk.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_HoW9NcvCRAjGF0HGQgDaGg_Pjj5sy_M...";
+
+  const TABLE_NAME = "menu_öğeleri";
+
+  async function loadMenu() {
+    const status = document.getElementById("status");
+    const menu = document.getElementById("menu");
+    const error = document.getElementById("error");
+
+    if (
+      SUPABASE_URL.includes("BURAYA_") ||
+      SUPABASE_KEY.includes("BURAYA_")
+    ) {
+      status.textContent = "Supabase bağlantı bilgileri henüz eklenmedi.";
+      error.hidden = false;
+      error.textContent =
+        "GitHub'a yüklemeden önce index.html içindeki SUPABASE_URL ve SUPABASE_KEY alanlarını doldurun.";
+      return;
+    }
+
+    try {
+      const url =
+        SUPABASE_URL.replace(/\/$/, "") +
+        "/rest/v1/" +
+        encodeURIComponent(TABLE_NAME) +
+        "?select=kategori,isim,fiyat,siralama_sirasi,aktif&aktif=eq.true&order=kategori.asc,siralama_sirasi.asc";
+
+      const response = await fetch(url, {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": "Bearer " + SUPABASE_KEY
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error("Supabase bağlantısı başarısız: " + response.status);
+      }
+
+      const items = await response.json();
+
+      status.remove();
+
+      if (!items.length) {
+        menu.innerHTML = '<div class="status">Aktif menü ürünü bulunamadı.</div>';
+        return;
+      }
+
+      const groups = {};
+      items.forEach(item => {
+        if (!groups[item.kategori]) groups[item.kategori] = [];
+        groups[item.kategori].push(item);
+      });
+
+      Object.entries(groups).forEach(([category, products]) => {
+        const section = document.createElement("section");
+        section.className = "category";
+
+        const title = document.createElement("div");
+        title.className = "category-title";
+        title.innerHTML = `<h2>${escapeHtml(category)}</h2>`;
+        section.appendChild(title);
+
+        products.forEach(product => {
+          const row = document.createElement("div");
+          row.className = "item";
+
+          const name = document.createElement("div");
+          name.className = "item-name";
+          name.textContent = product.isim;
+
+          const price = document.createElement("div");
+          price.className = "item-price";
+          price.textContent = formatPrice(product.fiyat);
+
+          row.appendChild(name);
+          row.appendChild(price);
+          section.appendChild(row);
+        });
+
+        menu.appendChild(section);
+      });
+
+    } catch (err) {
+      console.error(err);
+      status.textContent = "Menü yüklenemedi.";
+      error.hidden = false;
+      error.textContent =
+        "Menü verileri alınamadı. Supabase URL, yayınlanabilir anahtar ve RLS SELECT politikasını kontrol edin.";
+    }
+  }
+
+  function formatPrice(value) {
+    const number = Number(value);
+    if (Number.isNaN(number)) return value + " TL";
+
+    return new Intl.NumberFormat("tr-TR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(number) + " TL";
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  loadMenu();
+</script>
+
+</body>
+</html>
